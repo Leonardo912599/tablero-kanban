@@ -1,112 +1,152 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Plus } from "lucide-react";
 import Modal from "./Modal";
-import Task from "./Task";
 import FormEditBoard from "./FormEditBoard";
 import { useContext } from 'react'
 import { useSelector } from 'react-redux'
 import { BoardContext } from '../context/BoardContext'
-import { AppDispatch, RootState } from '../store/store'
 import { Eye } from "lucide-react";
 import { ModeContext } from "../context/ModeContext";
 import { DndContext, closestCenter } from '@dnd-kit/core'
-import { arrayMove, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import type { DragEndEvent } from '@dnd-kit/core';
+import { AppDispatch, RootState } from "../store/store";
 import { useDispatch } from "react-redux";
-import { changeOrderTask } from "../store/boardSlice";
+import { getColumnsByBoard } from "../store/columnSlice";
+import ListTask from "./ListTask";
+import { changeOrderTasks, getAllTaskByBoard } from "../store/taskSlice";
+import Droppable from "./Droppable";
 
 const Board = () => {
 
-  const dispatch = useDispatch<AppDispatch>()
+  const disptach = useDispatch<AppDispatch>();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const context = useContext(BoardContext);
-  const boards = useSelector((state: RootState) => state.boards.boards)
-  const contextMode = useContext(ModeContext)
+  const contextMode = useContext(ModeContext);
+  const boards = useSelector((state: RootState) => state.boards.boards);
+  const columns = useSelector((state: RootState) => state.columns.columns);
+  const tasks = useSelector((state: RootState) => state.tasks.tasks)
+
 
   if (!context) {
     throw new Error("Sidebar must be used within a BoardProvider");
   }
 
   if (!contextMode) {
-    throw new Error("Sidebar must be used within a ModeProvider")
+    throw new Error("Sidebar must be used within a ModeProvider");
   }
-  const { selectedBoardIndex, hiddenSidebar, sethiddenSidebar } = context;
-  const { enabled } = contextMode
 
-  if (selectedBoardIndex === null) {
-    return <div>No board selected</div>;
-  }
-  const board = boards[selectedBoardIndex]
+  const { selectedBoardId, hiddenSidebar, sethiddenSidebar } = context;
+  const { enabled } = contextMode;
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  useEffect(() => {
+
+    if (selectedBoardId) {
+      disptach(getColumnsByBoard(selectedBoardId));
+      disptach(getAllTaskByBoard(selectedBoardId));
+    }
+
+  }, [disptach, selectedBoardId]);
+
+
+  const board = boards.find(b => b.id_board === selectedBoardId);
+
   const openModal = () => setIsModalOpen(true);
-  const closeModal = () => {
-    setIsModalOpen(false);
-  }
+  const closeModal = () => setIsModalOpen(false);
 
-  const handleDragEnd = (event: DragEndEvent,index:number) => {
-    const { active, over } = event
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
 
     if (!over || active.id === over.id) return;
 
-    console.log('Arrastrado:', active.id);
-    console.log('Soltado sobre:', over.id);
+    const activeTaskId = Number(active.id);
+    const activeTask = tasks.find((t) => t.id_task === activeTaskId);
 
-    const column = board.columns[index]
+    if (!activeTask) return;
 
-    if (!column) return;
+    let toColumnId: number;
+    let overTaskId: number | null = null;
 
-    const oldIndex = column.tasks.findIndex((_,i) => i === active.id);
-    const newIndex = column.tasks.findIndex((_,i) => i === over.id);
+    if (String(over.id).startsWith("column-")) {
+      toColumnId = Number(String(over.id).replace("column-", ""));
+    } else {
+      overTaskId = Number(over.id);
+      const overTask = tasks.find((t) => t.id_task === overTaskId);
+      if (!overTask) return;
+      toColumnId = overTask.id_column;
+    }
 
-    if (oldIndex === -1 || newIndex === -1) return;
+    const fromColumnId = activeTask.id_column;
 
-    const newArray = arrayMove(column.tasks, oldIndex, newIndex);
-  
-    dispatch(changeOrderTask({indexBoard:selectedBoardIndex,indexColumn:index,newTasks:newArray}))
-  }
+    let toTasks = tasks.filter(
+      (t) => t.id_column === toColumnId && t.id_task !== activeTaskId
+    );
+
+    const overIndex = overTaskId
+      ? toTasks.findIndex((t) => t.id_task === overTaskId)
+      : toTasks.length;
+
+    toTasks.splice(overIndex, 0, { ...activeTask, id_column: toColumnId });
+
+    const updatedToTasks = toTasks.map((t, index) => ({
+      ...t,
+      order: index,
+      id_column: toColumnId,
+    }));
+
+    let updatedTasks: typeof tasks = [];
+
+    if (fromColumnId === toColumnId) {
+      updatedTasks = updatedToTasks;
+    } else {
+      const fromTasks = tasks
+        .filter((t) => t.id_column === fromColumnId && t.id_task !== activeTaskId)
+        .map((t, index) => ({
+          ...t,
+          order: index,
+          id_column: fromColumnId,
+        }));
+
+      updatedTasks = [...fromTasks, ...updatedToTasks];
+    }
+
+    try {
+      await disptach(changeOrderTasks(updatedTasks)).unwrap();
+      await disptach(getAllTaskByBoard(selectedBoardId!)).unwrap();
+      await disptach(getColumnsByBoard(selectedBoardId!)).unwrap();
+    } catch (error) {
+      console.error("Error actualizando orden:", error);
+    }
+  };
+
 
   return (
     <div className={`${enabled ? 'bg-[#1e1e2f]' : 'bg-[#F4F7FD]'}  w-full sm:${hiddenSidebar ? 'w-full' : 'w-full sm:w-[77%]'} relative h-full overflow-x-auto p-5`}>
       {
-        board.columns.length > 0 ? (
-          <div className="flex flex-row gap-6 h-full min-w-fit">
-            {
-              board.columns.map((b, indx) => (
-                <div key={indx} className="flex-shrink-0 flex flex-col justify-start items-center h-full w-[250px] sm:w-72">
-                  <div className="flex flex-row justify-center items-center gap-2 w-full">
-                    <p style={{ backgroundColor: b.color }} className="w-4 h-4 rounded-full"></p>
-                    <h1 className="text-md text-start font-semibold text-[#828FA3]">{b.name.toUpperCase()} ({b.tasks.length})</h1>
-                  </div>
-                  <DndContext
-                    collisionDetection={closestCenter}
-                    onDragEnd={(e) => handleDragEnd(e,indx)}
-                  >
-                    <SortableContext
-                      items={b.tasks.map((_, i) => i)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {b.tasks.map((t, i) => (
-                        <Task
-                          key={i}
-                          task={t}
-                          indexColumn={indx}
-                          indexTask={i}
-                          board={board}
-                          selectedBoardIndex={selectedBoardIndex}
-                        />
-                      ))}
-                    </SortableContext>
-                  </DndContext>
-                </div>
-              ))
-            }
-            <div className={`${enabled ? 'bg-[#2b2c3b]' : 'bg-[#EEF1F8]'} flex-shrink-0 flex flex-col justify-center items-center cursor-pointer h-full rounded-lg w-[250px] sm:w-72 transition-transform hover:-translate-y-1 hover:shadow-md`}
-              onClick={openModal}>
-              <h1 className="text-2xl font-bold text-[#828FA3]">
-                <Plus className="inline-block" strokeWidth={3} /> New Column
-              </h1>
+        columns.length > 0 ? (
+          <DndContext
+            collisionDetection={closestCenter}
+            onDragEnd={(e) => handleDragEnd(e)}
+          >
+            <div className="flex flex-row gap-6 h-full min-w-fit">
+              {
+                columns.map((c, indx) => (
+                  <Droppable key={c.id_column} id={`column-${c.id_column}`} className="flex-shrink-0 flex flex-col justify-start items-center h-full w-[250px] sm:w-72">
+                    <div className="flex flex-row justify-center items-center gap-2 w-full">
+                      <p style={{ backgroundColor: c.color }} className="w-4 h-4 rounded-full"></p>
+                      <h1 className="text-md text-start font-semibold text-[#828FA3]">{c.name.toUpperCase()} ({c.tasks.length})</h1>
+                    </div>
+                    <ListTask key={indx} id_column={c.id_column} board={board!} selectedBoardId={selectedBoardId!} />
+                  </Droppable>
+                ))
+              }
+              <div className={`${enabled ? 'bg-[#2b2c3b]' : 'bg-[#EEF1F8]'} flex-shrink-0 flex flex-col justify-center items-center cursor-pointer h-full rounded-lg w-[250px] sm:w-72 transition-transform hover:-translate-y-1 hover:shadow-md`}
+                onClick={openModal}>
+                <h1 className="text-2xl font-bold text-[#828FA3]">
+                  <Plus className="inline-block" strokeWidth={3} /> New Column
+                </h1>
+              </div>
             </div>
-          </div>
+          </DndContext>
         ) : (
           <div className="flex flex-col justify-center items-center h-full">
             <h1 className="text-xl text-[#828FA3] font-semibold mb-3">This board is empty. Create a new column to get started.</h1>
@@ -120,8 +160,8 @@ const Board = () => {
       </div>
       <Modal isOpen={isModalOpen} handleClose={closeModal} title="Edit Board">
         <FormEditBoard
-          board={board}
-          selectedBoardIndex={selectedBoardIndex}
+          board={board!}
+          selectedBoardId={selectedBoardId}
           closeModal={closeModal}
         />
       </Modal>

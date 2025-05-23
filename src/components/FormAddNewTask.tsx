@@ -1,33 +1,39 @@
 import { useState } from 'react';
 import { Board, Subtask } from '../interfaces/Board';
-import { useDispatch } from 'react-redux';
-import { addNewTask } from '../store/boardSlice';
 import { Plus, X } from 'lucide-react';
 import { useContext } from 'react';
 import { ModeContext } from '../context/ModeContext';
 import WarningModal from './WarningModal';
+import { useDispatch } from 'react-redux';
+import { AppDispatch } from '../store/store';
+import { addNewTask } from '../store/taskSlice';
+import { getColumnsByBoard } from '../store/columnSlice';
+import { BoardContext } from '../context/BoardContext';
 
 type Props = {
-    selectedBoardIndex: number | null
     closeModal: () => void
     board: Board
 }
 
-const FormAddNewTask = ({ selectedBoardIndex, closeModal, board }: Props) => {
+const FormAddNewTask = ({ closeModal, board }: Props) => {
 
+    const dispatch = useDispatch<AppDispatch>()
+    const context = useContext(BoardContext);
     const contextMode = useContext(ModeContext)
     if (!contextMode) {
         throw new Error("Sidebar must be used within a ModeProvider")
     }
+    if (!context) {
+        throw new Error("Sidebar must be used within a BoardProvider");
+    }
     const { enabled } = contextMode
-
+    const { selectedBoardId } = context;
     const [isModalWarningOpen, setIsModalWarningOpen] = useState(false);
     const openModalWarning = () => setIsModalWarningOpen(true);
     const closeModalWarning = () => setIsModalWarningOpen(false);
-
-    const dispatch = useDispatch()
     const list_subtasks: Subtask[] = [
         {
+            id_subtask: 0,
             title: 'Make coffee',
             isCompleted: false
         }
@@ -43,8 +49,10 @@ const FormAddNewTask = ({ selectedBoardIndex, closeModal, board }: Props) => {
     const [formErrors, setFormErrors] = useState<{
         title?: string;
         status?: string;
-        subtask?: string[]
+        subtasks?: string[]
     }>({});
+
+    const columnaSeleccionada = board.columns.find(c => c.name === formValues.status)
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -56,15 +64,16 @@ const FormAddNewTask = ({ selectedBoardIndex, closeModal, board }: Props) => {
         const updatedStaks = [...formValues.subtasks];
         updatedStaks[index].title = value;
 
-        setFormValues((prev) => ({ ...prev, subtasks: updatedStaks }));
+        setFormValues((prev) => ({ ...prev, Subtask: updatedStaks }));
 
-        const updatedErrors = formErrors.subtask ? [...formErrors.subtask] : [];
+        const updatedErrors = formErrors.subtasks ? [...formErrors.subtasks] : [];
         updatedErrors[index] = '';
         setFormErrors((prev) => ({ ...prev, subtask: updatedErrors }));
     };
 
     const agregarSubtask = () => {
         const nuevaSubtask: Subtask = {
+            id_subtask: 0,
             title: '',
             isCompleted: false
         };
@@ -79,7 +88,7 @@ const FormAddNewTask = ({ selectedBoardIndex, closeModal, board }: Props) => {
         setFormValues(prev => ({ ...prev, subtasks: newSubtasks }))
     }
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
         const errors: typeof formErrors = {};
@@ -94,10 +103,10 @@ const FormAddNewTask = ({ selectedBoardIndex, closeModal, board }: Props) => {
             hasError = true
         }
 
-        errors.subtask = formValues.subtasks.map((s) =>
+        errors.subtasks = formValues.subtasks.map((s) =>
             s.title.trim() === '' ? 'Subtask cannot be empty' : ''
         );
-        if (errors.subtask.some(err => err !== '')) {
+        if (errors.subtasks.some(err => err !== '')) {
             hasError = true;
         }
 
@@ -113,7 +122,8 @@ const FormAddNewTask = ({ selectedBoardIndex, closeModal, board }: Props) => {
             return
         }
 
-        dispatch(addNewTask({ index: selectedBoardIndex!, task: formValues }))
+        if (columnaSeleccionada) await dispatch(addNewTask({ ...formValues, id_column: columnaSeleccionada.id_column })).unwrap()
+        if (selectedBoardId) await dispatch(getColumnsByBoard(selectedBoardId)).unwrap()
         closeModal()
     }
 
@@ -151,7 +161,7 @@ const FormAddNewTask = ({ selectedBoardIndex, closeModal, board }: Props) => {
                                         onChange={(e) => handleSubtaskChange(i, e.target.value)}
                                         type="text"
                                         placeholder="e.g. Make coffee"
-                                        className={`${enabled ? 'bg-[#2b2c3b] text-white border-gray-600' : 'bg-gray-50 text-black border-gray-300'} border rounded-lg text-sm outline-none p-2 w-9/10 ${formErrors.subtask?.[i] ? 'border-red-500' : 'border-gray-300'
+                                        className={`${enabled ? 'bg-[#2b2c3b] text-white border-gray-600' : 'bg-gray-50 text-black border-gray-300'} border rounded-lg text-sm outline-none p-2 w-9/10 ${formErrors.subtasks?.[i] ? 'border-red-500' : 'border-gray-300'
                                             }`}
                                         value={s.title}
                                     />
@@ -159,8 +169,8 @@ const FormAddNewTask = ({ selectedBoardIndex, closeModal, board }: Props) => {
                                         onClick={() => eliminarSubtask(i)}
                                         className='text-[#828FA3] w-1/10 cursor-pointer' />
                                 </div>
-                                {formErrors.subtask?.[i] && (
-                                    <p className="text-red-500 text-xs my-1">{formErrors.subtask[i]}</p>
+                                {formErrors.subtasks?.[i] && (
+                                    <p className="text-red-500 text-xs my-1">{formErrors.subtasks[i]}</p>
                                 )}
                             </div>
                         ))

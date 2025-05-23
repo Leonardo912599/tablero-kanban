@@ -1,23 +1,22 @@
 import { useState } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../store/store";
 import { BoardContext } from "../context/BoardContext";
 import { useContext } from "react";
 import { Task, Subtask } from "../interfaces/Board";
 import { X } from "lucide-react";
-import { useDispatch } from "react-redux";
-import { editTask } from "../store/boardSlice";
 import { ModeContext } from "../context/ModeContext";
 import { Plus } from "lucide-react";
 import WarningModal from "./WarningModal";
+import { editTask } from "../store/taskSlice";
 
 type Props = {
     task: Task
-    indexTask: number
     closeModal: () => void
+    closeModalWithMenu: () => void
 }
 
-const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
+const FormEditTask = ({ task, closeModal, closeModalWithMenu }: Props) => {
 
     const dispatch = useDispatch<AppDispatch>()
     const boards = useSelector((state: RootState) => state.boards.boards)
@@ -31,10 +30,10 @@ const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
     if (!context) {
         throw new Error("Sidebar must be used within a BoardProvider");
     }
-    const { selectedBoardIndex } = context;
+    const { selectedBoardId } = context;
     const { enabled } = contextMode
 
-    const board = boards[selectedBoardIndex!]
+    const board = boards.find(b => b.id_board === selectedBoardId)
 
     const [isModalWarningOpen, setIsModalWarningOpen] = useState(false);
     const openModalWarning = () => setIsModalWarningOpen(true);
@@ -52,11 +51,12 @@ const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
     const [formErrors, setFormErrors] = useState<{
         title?: string;
         status?: string;
-        subtask?: string[]
+        subtasks?: string[]
     }>({});
 
     const agregarSubtask = () => {
         const nuevaSubtask: Subtask = {
+            id_subtask: 0,
             title: '',
             isCompleted: false
         };
@@ -81,10 +81,10 @@ const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
             hasError = true
         }
 
-        errors.subtask = formValues.subtasks.map((s) =>
+        errors.subtasks = formValues.subtasks.map((s) =>
             s.title.trim() === '' ? 'Subtask cannot be empty' : ''
         );
-        if (errors.subtask.some(err => err !== '')) {
+        if (errors.subtasks.some(err => err !== '')) {
             hasError = true;
         }
 
@@ -100,9 +100,10 @@ const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
             return
         }
 
-        dispatch(editTask({ indexBoard: selectedBoardIndex!, indexTask, prevStatus: task.status, task: formValues }))
-
+        dispatch(editTask({ ...formValues, id_task: task.id_task, id_column: task.id_column }))
+        closeModalWithMenu()
         closeModal()
+
     }
 
     const handleSubtaskChange = (index: number, value: string) => {
@@ -112,7 +113,7 @@ const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
 
         setFormValues((prev) => ({ ...prev, subtasks: updatedStaks }));
 
-        const updatedErrors = formErrors.subtask ? [...formErrors.subtask] : [];
+        const updatedErrors = formErrors.subtasks ? [...formErrors.subtasks] : [];
         updatedErrors[index] = '';
         setFormErrors((prev) => ({ ...prev, subtask: updatedErrors }));
     };
@@ -156,13 +157,13 @@ const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
                     <label htmlFor="board-columns" className='block mb-2 text-sm font-bold text-[#828FA3]'>Subtasks</label>
                     {
                         formValues.subtasks.map((s, i) => (
-                            <div>
-                                <div key={i} className='flex flex-row justify-center items-center mb-2'>
+                            <div key={i}>
+                                <div className='flex flex-row justify-center items-center mb-2'>
                                     <input
                                         onChange={(e) => handleSubtaskChange(i, e.target.value)}
                                         type="text"
                                         placeholder="e.g. Make coffee"
-                                        className={`${enabled ? 'bg-[#2b2c3b] text-white border-gray-600' : 'bg-gray-50 text-black border-gray-300'} border rounded-lg text-sm outline-none p-2 w-9/10 ${formErrors.subtask?.[i] ? 'border-red-500' : 'border-gray-300'
+                                        className={`${enabled ? 'bg-[#2b2c3b] text-white border-gray-600' : 'bg-gray-50 text-black border-gray-300'} border rounded-lg text-sm outline-none p-2 w-9/10 ${formErrors.subtasks?.[i] ? 'border-red-500' : 'border-gray-300'
                                             }`}
                                         value={s.title}
                                     />
@@ -170,8 +171,8 @@ const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
                                         onClick={() => eliminarSubtask(i)}
                                         className='text-[#828FA3] w-1/10 cursor-pointer' />
                                 </div>
-                                {formErrors.subtask?.[i] && (
-                                    <p className="text-red-500 text-xs my-1">{formErrors.subtask[i]}</p>
+                                {formErrors.subtasks?.[i] && (
+                                    <p className="text-red-500 text-xs my-1">{formErrors.subtasks?.[i]}</p>
                                 )}
                             </div>
                         ))
@@ -186,7 +187,7 @@ const FormEditTask = ({ task, indexTask, closeModal }: Props) => {
                         onChange={handleInputChange}
                     >
                         <option value="">Select column</option>
-                        {board.columns.map((b, i) => (
+                        {board?.columns.map((b, i) => (
                             <option key={i} className='text-[#828FA3] text-md' value={b.name}>
                                 {b.name}
                             </option>

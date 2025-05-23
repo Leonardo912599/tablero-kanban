@@ -1,25 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, PanelsTopLeft, X, Sun, Moon } from 'lucide-react';
 import Modal from './Modal';
 import { Column } from '../interfaces/Board';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../store/store';
-import { addBoard } from '../store/boardSlice';
+import { createBoard } from '../store/boardSlice';
 import { useContext } from 'react';
 import { BoardContext } from '../context/BoardContext';
 import { seleccionarColorAleatorio } from '../utils/colores';
 import WarningModal from './WarningModal';
 import { EyeOff } from 'lucide-react';
 import { ModeContext } from '../context/ModeContext';
+import { getAllBoards } from '../store/boardSlice';
 
 const Sidebar = () => {
 
   const dispatch = useDispatch<AppDispatch>()
   const boards = useSelector((state: RootState) => state.boards.boards)
   const context = useContext(BoardContext);
-
   const contextMode = useContext(ModeContext)
-
   if (!contextMode) {
     throw new Error("Sidebar must be used within a ModeProvider")
   }
@@ -29,15 +28,31 @@ const Sidebar = () => {
   }
 
   const { enabled, setEnabled } = contextMode
-  const { selectedBoardIndex, setSelectedBoardIndex, hiddenSidebar, sethiddenSidebar } = context;
+  const { selectedBoardId, setSelectedBoardId, hiddenSidebar, sethiddenSidebar } = context;
+
+  useEffect(() => {
+
+    dispatch(getAllBoards())
+
+  }, [dispatch])
+
+  if (!contextMode) {
+    throw new Error("Sidebar must be used within a ModeProvider")
+  }
+
+  if (!context) {
+    throw new Error("Sidebar must be used within a BoardProvider");
+  } 
 
   const list_columns: Column[] = [
     {
+      id_column: 0,
       name: "todo",
       color: seleccionarColorAleatorio(),
       tasks: []
     },
     {
+      id_column: 0,
       name: 'doing',
       color: seleccionarColorAleatorio(),
       tasks: []
@@ -99,7 +114,7 @@ const Sidebar = () => {
     }
 
     setFormErrors(errors)
-    
+
     if (hasError) return
 
     const nombres = formValues.columns.map((col) => col.name.trim().toLowerCase());
@@ -110,13 +125,14 @@ const Sidebar = () => {
       return;
     }
 
-    dispatch(addBoard(formValues))
+    dispatch(createBoard(formValues))
     closeModal();
-    setFormValues(({name:'',columns:list_columns}))
+    setFormValues(({ name: '', columns: list_columns }))
   };
 
   const agregarColumna = () => {
     const column = {
+      id_column: 0,
       name: '',
       color: seleccionarColorAleatorio(),
       tasks: []
@@ -144,12 +160,12 @@ const Sidebar = () => {
           <div className='flex flex-col overflow-y-auto w-full'>
             {
               boards.map((b, i) => (
-                <div key={i} className={`${i === selectedBoardIndex ? 'bg-[#635FC7] text-white' : enabled ? 'bg-[#2b2c3b] text-[#828FA3]' : 'bg-white text-[#828FA3]'} flex flex-row justify-start items-center cursor-pointer rounded-r-2xl 
+                <div key={i} className={`${b.id_board === selectedBoardId ? 'bg-[#635FC7] text-white' : enabled ? 'bg-[#2b2c3b] text-[#828FA3]' : 'bg-white text-[#828FA3]'} flex flex-row justify-start items-center cursor-pointer rounded-r-2xl 
                    w-9/10 px-7 gap-2 py-4`}
                   onClick={() => {
-                    setSelectedBoardIndex(i)
-                    localStorage.setItem("boardIndex",JSON.stringify(i))
-                    }}>
+                     setSelectedBoardId(b.id_board)
+                     localStorage.setItem('boardId', b.id_board.toString());
+                  }}>
                   <PanelsTopLeft />
                   <p className='font-semibold'>{b.name}</p>
                 </div>
@@ -175,7 +191,7 @@ const Sidebar = () => {
               checked={enabled}
               onChange={() => {
                 setEnabled(!enabled)
-                localStorage.setItem("enabled",JSON.stringify(!enabled))
+                localStorage.setItem("enabled", JSON.stringify(!enabled))
               }}
               className="sr-only peer"
             />
@@ -236,7 +252,7 @@ const Sidebar = () => {
             className='w-full py-2 px-3 mt-3 mb-4 font-bold text-[#635FC7] hover:bg-white cursor-pointer bg-purple-100 rounded-xl'
             onClick={agregarColumna}
           >
-             <Plus size={16} className='inline-block' />
+            <Plus size={16} className='inline-block' />
             Add New Column
           </button>
 

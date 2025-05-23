@@ -1,11 +1,9 @@
-
 import Board from "./components/Board"
 import Header from "./components/Header"
 import Sidebar from "./components/Sidebar"
 
-
 const App = () => {
-  // localStorage.clear()
+  localStorage.clear()
   return (
     <div className="w-full h-[100dvh] flex flex-col overflow-hidden">
       <div className="h-20 flex-shrink-0">

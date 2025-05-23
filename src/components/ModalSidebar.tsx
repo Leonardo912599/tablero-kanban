@@ -2,19 +2,19 @@ import { useState } from 'react';
 import { Plus, PanelsTopLeft, X, Sun, Moon } from 'lucide-react';
 import Modal from './Modal';
 import { Column } from '../interfaces/Board';
-import { useDispatch, useSelector } from 'react-redux';
-import { AppDispatch, RootState } from '../store/store';
-import { addBoard } from '../store/boardSlice';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store/store';
 import { useContext } from 'react';
 import { BoardContext } from '../context/BoardContext';
 import { seleccionarColorAleatorio } from '../utils/colores';
 import WarningModal from './WarningModal';
 import { ModeContext } from '../context/ModeContext';
+import { Board } from '../interfaces/Board';
 
 const ModalSidebar = () => {
 
-    const dispatch = useDispatch<AppDispatch>()
-    const boards = useSelector((state: RootState) => state.boards.boards)
+    // const dispatch = useDispatch<AppDispatch>()
+    const boards:Board[] = useSelector((state: RootState) => state.boards.boards)
     const context = useContext(BoardContext);
 
     const contextMode = useContext(ModeContext)
@@ -28,15 +28,17 @@ const ModalSidebar = () => {
     }
 
     const { enabled, setEnabled } = contextMode
-    const { selectedBoardIndex, setSelectedBoardIndex } = context;
+    const { selectedBoardId, setSelectedBoardId } = context;
 
     const list_columns: Column[] = [
         {
+            id_column:0,
             name: "todo",
             color: seleccionarColorAleatorio(),
             tasks: []
         },
         {
+            id_column:0,
             name: 'doing',
             color: seleccionarColorAleatorio(),
             tasks: []
@@ -63,7 +65,7 @@ const ModalSidebar = () => {
         const updatedStaks = [...formValues.columns];
         updatedStaks[index].name = value;
 
-        setFormValues((prev) => ({ ...prev, columns: updatedStaks }));
+        setFormValues((prev) => ({ ...prev, Column: updatedStaks }));
 
         const updatedErrors = formErrors.columns ? [...formErrors.columns] : [];
         updatedErrors[index] = '';
@@ -109,13 +111,14 @@ const ModalSidebar = () => {
             return;
         }
 
-        dispatch(addBoard(formValues))
+        // dispatch(addBoard(formValues))
         closeModal();
         setFormValues(({ name: '', columns: list_columns }))
     };
 
     const agregarColumna = () => {
-        const column = {
+        const column:Column = {
+            id_column:0,
             name: '',
             color: seleccionarColorAleatorio(),
             tasks: []
@@ -142,10 +145,10 @@ const ModalSidebar = () => {
                     <div className='flex flex-col overflow-y-auto w-full'>
                         {
                             boards.map((b, i) => (
-                                <div key={i} className={`${i === selectedBoardIndex ? 'bg-[#635FC7] text-white' : enabled ? 'bg-[#2b2c3b] text-[#828FA3]' : 'bg-white text-[#828FA3]'} flex flex-row justify-start items-center cursor-pointer rounded-r-2xl 
+                                <div key={i} className={`${i === selectedBoardId ? 'bg-[#635FC7] text-white' : enabled ? 'bg-[#2b2c3b] text-[#828FA3]' : 'bg-white text-[#828FA3]'} flex flex-row justify-start items-center cursor-pointer rounded-r-2xl 
                    w-9/10 px-7 gap-2 py-4`}
                                     onClick={() => {
-                                        setSelectedBoardIndex(i)
+                                        setSelectedBoardId(b.id_board)
                                         localStorage.setItem("boardIndex", JSON.stringify(i))
                                     }}>
                                     <PanelsTopLeft />

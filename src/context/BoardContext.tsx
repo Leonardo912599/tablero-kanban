@@ -1,10 +1,12 @@
-import { useState, createContext, ReactNode } from "react";
+import { useState, useEffect, createContext, ReactNode } from "react";
+import { useSelector } from 'react-redux';
+import { selectMinBoardId } from "../store/boardSlice";
 
 interface BoardContextType {
-  selectedBoardIndex: number | null;
-  hiddenSidebar:boolean;
-  setSelectedBoardIndex: (index: number) => void;
-  sethiddenSidebar:(value:boolean) => void;
+  selectedBoardId: number | null;
+  hiddenSidebar: boolean;
+  setSelectedBoardId: (index: number) => void;
+  sethiddenSidebar: (value: boolean) => void;
 }
 
 export const BoardContext = createContext<BoardContextType | undefined>(undefined);
@@ -14,15 +16,28 @@ interface BoardProviderProps {
 }
 
 export const BoardProvider = ({ children }: BoardProviderProps) => {
+  const minBoardId = useSelector(selectMinBoardId);
 
-  const boardIndexStorage = localStorage.getItem('boardIndex')
-  const boardIndexParse = boardIndexStorage !== null ? JSON.parse(boardIndexStorage) : 0
+  const storedId = localStorage.getItem('boardId');
+  const parsedId = storedId !== null ? Number(JSON.parse(storedId)) : null;
 
-  const [selectedBoardIndex, setSelectedBoardIndex] = useState<number>(boardIndexParse);
-  const [hiddenSidebar, sethiddenSidebar] = useState<boolean>(false)
+  const [selectedBoardId, setSelectedBoardId] = useState<number | null>(parsedId);
+  const [hiddenSidebar, sethiddenSidebar] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (selectedBoardId === null && minBoardId !== null) {
+      setSelectedBoardId(minBoardId);
+    }
+  }, [minBoardId, selectedBoardId]);
+
+  useEffect(() => {
+    if (selectedBoardId !== null) {
+      localStorage.setItem('boardId', JSON.stringify(selectedBoardId));
+    }
+  }, [selectedBoardId]);
 
   return (
-    <BoardContext.Provider value={{ selectedBoardIndex, setSelectedBoardIndex,hiddenSidebar,sethiddenSidebar }}>
+    <BoardContext.Provider value={{ selectedBoardId, setSelectedBoardId, hiddenSidebar, sethiddenSidebar }}>
       {children}
     </BoardContext.Provider>
   );

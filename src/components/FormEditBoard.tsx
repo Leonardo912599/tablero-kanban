@@ -9,14 +9,15 @@ import { seleccionarColorAleatorio } from '../utils/colores'
 import { editBoard } from '../store/boardSlice'
 import { Plus } from 'lucide-react'
 import WarningModal from './WarningModal'
+import { getColumnsByBoard } from '../store/columnSlice'
 
 type Props = {
     board: Board
-    selectedBoardIndex: number
+    selectedBoardId: number | null
     closeModal: () => void
 }
 
-const FormEditBoard = ({ board, selectedBoardIndex, closeModal }: Props) => {
+const FormEditBoard = ({ board, selectedBoardId, closeModal }: Props) => {
 
     const contextMode = useContext(ModeContext)
     if (!contextMode) {
@@ -59,6 +60,7 @@ const FormEditBoard = ({ board, selectedBoardIndex, closeModal }: Props) => {
 
     const agregarColumna = () => {
         const column: Column = {
+            id_column: 0,
             name: '',
             color: seleccionarColorAleatorio(),
             tasks: []
@@ -67,7 +69,7 @@ const FormEditBoard = ({ board, selectedBoardIndex, closeModal }: Props) => {
             { ...prev, columns: [...prev.columns, column] }
         ))
     }
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         const errors: typeof formErrors = {};
         let hasError = false;
@@ -93,7 +95,22 @@ const FormEditBoard = ({ board, selectedBoardIndex, closeModal }: Props) => {
             openModalWarning()
             return
         }
-        dispatch(editBoard({ index: selectedBoardIndex, board: formValues }))
+        const cleanColumns = formValues.columns.map(col => ({
+            ...col,
+            tasks: [],
+        }));
+
+        if (selectedBoardId) {
+            const result = await dispatch(editBoard({
+                id_board: selectedBoardId,
+                name: formValues.name,
+                columns: cleanColumns,
+            }));
+            console.log(result)
+            if (editBoard.fulfilled.match(result)) {
+                dispatch(getColumnsByBoard(selectedBoardId));
+            }
+        }
         closeModal()
     }
 
